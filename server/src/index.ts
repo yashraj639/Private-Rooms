@@ -1,6 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config();
 import WebSocket, { WebSocketServer } from "ws";
 
-const wss = new WebSocketServer({ port: 8080 });
+const wss = new WebSocketServer({ port: Number(process.env.PORT) || 8080 });
 
 interface User {
     socket: WebSocket;

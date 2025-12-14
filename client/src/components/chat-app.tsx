@@ -1,5 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config();
 import { useEffect, useRef, useState } from "react";
 
 interface Message {
@@ -7,24 +5,32 @@ interface Message {
   isMe: boolean;
 }
 
+const isSocketReady = (socket: WebSocket | null) =>
+  socket && socket.readyState === WebSocket.OPEN;
+
 export default function ChatApp() {
   const [step, setStep] = useState("home");
   const [room, setRoom] = useState("");
   const [generatedRoom, setGeneratedRoom] = useState("");
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
 
-  const userId = useRef(Math.random().toString(36).substring(7));
+  const [isConnected, setIsConnected] = useState(false);
 
+  const userId = useRef(Math.random().toString(36).substring(7));
   const socketRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const WS_URL = import.meta.env.REACT_APP_WS_URL;
+  const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080";
 
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
     socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("Connected to server");
+      setIsConnected(true);
+    };
 
     ws.onmessage = (e) => {
       try {
@@ -35,12 +41,16 @@ export default function ChatApp() {
             { text: data.message, isMe: data.senderId === userId.current },
           ]);
         }
-      } catch {
-        console.log("Invalid JSON");
+      } catch (err) {
+        console.error("Invalid JSON:", err);
       }
     };
 
-    return () => ws.close();
+    ws.onclose = () => setIsConnected(false);
+
+    return () => {
+      ws.close();
+    };
   }, []);
 
   useEffect(() => {
@@ -48,31 +58,32 @@ export default function ChatApp() {
   }, [messages]);
 
   const createRoom = () => {
-    const code = String(Math.floor(10000 + Math.random() * 90000)); // 5-digit code
+    if (!isConnected) return;
+    const code = String(Math.floor(10000 + Math.random() * 90000));
     setGeneratedRoom(code);
     joinRoom(code);
     setStep("created");
   };
 
   const joinRoom = (code: string) => {
-    if (!code || !socketRef.current) return;
+    if (!code || !isSocketReady(socketRef.current)) return;
 
-    socketRef.current.send(JSON.stringify({ type: "join", room: code }));
-
+    socketRef.current?.send(JSON.stringify({ type: "join", room: code }));
     setRoom(code);
     setStep("chat");
   };
 
   const sendMessage = () => {
-    if (!input || !socketRef.current) return;
+    if (!input || !isSocketReady(socketRef.current)) return;
 
-    socketRef.current.send(
-      JSON.stringify({
-        type: "message",
-        message: input,
-        senderId: userId.current,
-      })
-    );
+    const payload = {
+      type: "message",
+      message: input,
+      senderId: userId.current,
+      room,
+    };
+
+    socketRef.current?.send(JSON.stringify(payload));
 
     setInput("");
   };
