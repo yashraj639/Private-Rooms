@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import { useEffect, useRef, useState } from "react";
 
 interface Message {
@@ -18,8 +20,10 @@ export default function ChatApp() {
   const socketRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  const WS_URL = import.meta.env.REACT_APP_WS_URL;
+
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080");
+    const ws = new WebSocket(WS_URL);
     socketRef.current = ws;
 
     ws.onmessage = (e) => {
